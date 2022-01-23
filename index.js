@@ -1,18 +1,87 @@
-const express = require('express');
-const app = express();
-var path = require('path');
+let scene, sceneLight, portalLight, cam, renderer, clock, portalParticles = [], smokeParticles = [];
 
-app.use(express.static('public'));
+const initScene = () => {
+    scene = new THREE.Scene();
+    sceneLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    sceneLight.position.set(0,0,1);
+    scene.add(sceneLight);
+    portalLight = new THREE.PointLight(0x062d89, 30, 600, 1.7);
+    portalLight.position.set(0,0,250);
+    scene.add(portalLight);
+    cam = new THREE.PerspectiveCamera(80, window.innerWidth/window.innerHeight, 1, 10000);
+    cam.position.z = 1000;
+    scene.add(cam);
+    renderer = new THREE.WebGLRenderer();
+    renderer.setClearColor(0x000000,1);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+    particleSetup();
+}
 
-app.get('/', function (req, res) {
-	res.sendFile(path.join(__dirname + '/public/index.html'));
+const particleSetup = () => {
+    let loader = new THREE.TextureLoader();
+    loader.load("smoke.png", function (texture) {
+        portalGeo = new THREE.PlaneBufferGeometry(350,350);
+        portalMaterial = new THREE.MeshStandardMaterial({
+            map:texture,
+            transparent: true
+        });
+        smokeGeo = new THREE.PlaneBufferGeometry(1000,1000);
+        smokeMaterial = new THREE.MeshStandardMaterial({
+            map:texture,
+            transparent: true
+        });
+        for(let p=880;p>250;p--) {
+            let particle = new THREE.Mesh(portalGeo,portalMaterial);
+            particle.position.set(
+                0.5 * p * Math.cos((4 * p * Math.PI) / 180),
+                0.5 * p * Math.sin((4 * p * Math.PI) / 180),
+                0.1 * p
+            );
+            particle.rotation.z = Math.random() *360;
+            portalParticles.push(particle);
+            scene.add(particle);
+        }
+        for(let p=0;p<40;p++) {
+            let particle = new THREE.Mesh(smokeGeo,smokeMaterial);
+            particle.position.set(
+                Math.random() * 1000-500,
+                Math.random() * 400-200,
+                25
+            );
+            particle.rotation.z = Math.random() *360;
+            particle.material.opacity = 0.6;
+            portalParticles.push(particle);
+            scene.add(particle);
+        }
+        clock = new THREE.Clock();
+        animate();
+        
+    });
+}
+
+const animate = () => {
+    let delta = clock.getDelta();
+    portalParticles.forEach(p => {
+        p.rotation.z -= delta *1.5;
+    });
+    smokeParticles.forEach(p => {
+        p.rotation.z -= delta *0.2;
+    });
+    if(Math.random() > 0.9) {
+        portalLight.power =350 + Math.random()*500;
+    }
+    renderer.render(scene,cam);
+    requestAnimationFrame(animate);
+}
+
+// resize canvas on resize window
+window.addEventListener('resize', () => {
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    renderer.setSize(width, height);
+    cam.aspect = width / height;
+    cam.updateProjectionMatrix();
 });
 
-app.get('*', function (req, res) {
-	res.send('Invalid URL');
-});
-
-const port = process.env.PORT || 3000;
-app.listen(port, function () {
-	console.log('App listening at port ' + port);
-});
+initScene();
